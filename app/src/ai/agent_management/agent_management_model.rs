@@ -71,6 +71,13 @@ impl AgentNotificationsModel {
         &self.notifications
     }
 
+    /// Sets the dock icon badge to the number of terminals that have rung the bell
+    /// and have not yet been viewed (cleared when none).
+    fn update_dock_badge(&self, ctx: &ModelContext<Self>) {
+        let count = self.belled_terminals.len();
+        ctx.set_dock_badge((count > 0).then(|| count.to_string()));
+    }
+
     /// Records that a terminal view rang the bell and should be tracked as wanting
     /// attention until it is viewed.
     ///
@@ -86,6 +93,7 @@ impl AgentNotificationsModel {
     ) {
         if self.belled_terminals.insert(terminal_view_id) {
             ctx.emit(AgentManagementEvent::BelledTerminalsChanged);
+            self.update_dock_badge(ctx);
         }
     }
 
@@ -98,6 +106,7 @@ impl AgentNotificationsModel {
     ) {
         if self.belled_terminals.remove(&terminal_view_id) {
             ctx.emit(AgentManagementEvent::BelledTerminalsChanged);
+            self.update_dock_badge(ctx);
         }
     }
 
