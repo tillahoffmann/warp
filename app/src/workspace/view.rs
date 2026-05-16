@@ -3301,6 +3301,7 @@ impl Workspace {
                 // Re-render so the vertical tabs panel can update unread-activity dots.
                 ctx.notify();
             }
+            AgentManagementEvent::BelledTerminalsChanged => {}
         }
     }
 
@@ -5006,6 +5007,8 @@ impl Workspace {
             if is_active_window {
                 AgentNotificationsModel::handle(ctx).update(ctx, |model, ctx| {
                     model.mark_items_from_terminal_view_read(terminal_view_id, ctx);
+                    // Viewing the terminal clears its pending bell from the dock badge.
+                    model.mark_terminal_viewed(terminal_view_id, ctx);
                 });
             }
         }
