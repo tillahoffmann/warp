@@ -71,6 +71,11 @@ impl AgentNotificationsModel {
         &self.notifications
     }
 
+    /// Whether the given terminal view has rung the bell and has not yet been viewed.
+    pub(crate) fn is_terminal_belled(&self, terminal_view_id: EntityId) -> bool {
+        self.belled_terminals.contains(&terminal_view_id)
+    }
+
     /// Records that a terminal view rang the bell and should be tracked as wanting
     /// attention until it is viewed.
     ///
