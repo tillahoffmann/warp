@@ -58,6 +58,12 @@ impl<'a, T: Entity> ModelContext<'a, T> {
         self.app.windows()
     }
 
+    /// Sets or clears the badge on the application's dock/taskbar icon.
+    /// Passing `None` removes the badge.
+    pub fn set_dock_badge(&self, label: Option<String>) {
+        self.app.set_dock_badge(label);
+    }
+
     pub fn add_model<S, F>(&mut self, build_model: F) -> ModelHandle<S>
     where
         S: Entity,
