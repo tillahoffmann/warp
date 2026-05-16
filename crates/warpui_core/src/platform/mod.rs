@@ -196,6 +196,16 @@ pub trait Delegate: 'static {
 
     fn request_user_attention(&self, window_id: WindowId);
 
+    /// Sets or clears a badge on the application's dock / taskbar icon.
+    ///
+    /// `label` is the text to display (e.g. a count of agents awaiting input);
+    /// `None` removes the badge.
+    ///
+    /// ## Platform-Specific
+    /// * macOS: sets `NSApp.dockTile.badgeLabel`.
+    /// * Other platforms: no-op (default).
+    fn set_dock_badge(&self, _label: Option<String>) {}
+
     fn clipboard(&mut self) -> &mut dyn Clipboard;
 
     fn system_theme(&self) -> SystemTheme;
