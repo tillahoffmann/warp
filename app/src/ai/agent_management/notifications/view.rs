@@ -113,7 +113,8 @@ impl NotificationMailboxView {
                 ctx.notify();
             }
             // Legacy toast path.
-            AgentManagementEvent::ConversationNeedsAttention { .. } => {}
+            AgentManagementEvent::ConversationNeedsAttention { .. }
+            | AgentManagementEvent::BelledTerminalsChanged => {}
         });
 
         let close_button = ctx.add_typed_action_view(|_| {
