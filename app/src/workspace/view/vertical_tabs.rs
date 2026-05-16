@@ -274,6 +274,7 @@ fn pane_row_background(
     is_selected: bool,
     is_hovered: bool,
     is_being_dragged: bool,
+    is_belled: bool,
     theme: &WarpTheme,
 ) -> Option<ThemeFill> {
     if let Some(color) = pane_color {
@@ -283,6 +284,9 @@ fn pane_row_background(
             TAB_COLOR_OPACITY
         };
         Some(color.with_opacity(opacity))
+    } else if is_belled {
+        // Subtle accent tint marks a pane whose terminal rang the bell, unviewed.
+        Some(internal_colors::accent_bg(theme))
     } else if is_selected {
         Some(internal_colors::fg_overlay_2(theme))
     } else if is_being_dragged || is_hovered {
@@ -320,6 +324,7 @@ fn render_pane_row_element(
         is_focused,
         typed: _,
         is_being_dragged,
+        is_belled,
         pane_color,
         badge_mouse_states: _,
         detail_hover_state,
@@ -342,13 +347,17 @@ fn render_pane_row_element(
             is_selected,
             state.is_hovered(),
             is_being_dragged,
+            is_belled,
             theme,
         ) {
             container = container.with_background(background);
         }
 
         container
-            .with_border(Border::all(1.).with_border_fill(if is_selected {
+            .with_border(Border::all(1.).with_border_fill(if is_belled {
+                // Accent ring marks a pane whose terminal rang the bell, unviewed.
+                theme.accent().into()
+            } else if is_selected {
                 internal_colors::fg_overlay_3(theme).into()
             } else {
                 ElementFill::None
@@ -682,6 +691,8 @@ struct PaneProps<'a> {
     is_focused: bool,
     typed: TypedPane<'a>,
     is_being_dragged: bool,
+    /// Whether this pane's terminal rang the bell and has not yet been viewed.
+    is_belled: bool,
     pane_color: Option<ThemeFill>,
     badge_mouse_states: PaneRowBadgeMouseStates,
     detail_hover_state: VerticalTabsDetailHoverState,
@@ -2886,6 +2897,11 @@ impl<'a> PaneProps<'a> {
             is_focused: pane_group.focused_pane_id(app) == pane_id,
             typed,
             is_being_dragged: pane.is_pane_being_dragged(app),
+            is_belled: pane_group
+                .terminal_view_from_pane_id(pane_id, app)
+                .is_some_and(|view| {
+                    AgentNotificationsModel::as_ref(app).is_terminal_belled(view.id())
+                }),
             pane_color: pane_row_state.pane_color,
             badge_mouse_states: pane_row_state.badge_mouse_states,
             detail_hover_state,

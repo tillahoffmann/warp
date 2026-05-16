@@ -3249,7 +3249,14 @@ impl Workspace {
         event: &AgentManagementEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Only process events for the active window.
+        // The per-pane bell highlight in the vertical tabs panel can change in any
+        // window, not just the active one, so re-render regardless.
+        if matches!(event, AgentManagementEvent::BelledTerminalsChanged) {
+            ctx.notify();
+            return;
+        }
+
+        // Only process the remaining events for the active window.
         if ctx
             .windows()
             .active_window()
@@ -3301,6 +3308,7 @@ impl Workspace {
                 // Re-render so the vertical tabs panel can update unread-activity dots.
                 ctx.notify();
             }
+            // Handled above, before the active-window gate.
             AgentManagementEvent::BelledTerminalsChanged => {}
         }
     }
