@@ -282,3 +282,36 @@ fn belled_terminals_tracked_independently() {
         });
     });
 }
+
+#[test]
+fn is_terminal_belled_reflects_record_and_view() {
+    App::test((), |mut app| async move {
+        let (_history, notifications) = setup_app(&mut app);
+        let terminal_view_id = EntityId::new();
+        let other_terminal_id = EntityId::new();
+
+        // Not belled before any bell.
+        notifications.read(&app, |model, _| {
+            assert!(!model.is_terminal_belled(terminal_view_id));
+        });
+
+        notifications.update(&mut app, |model, ctx| {
+            model.record_terminal_bell(terminal_view_id, ctx);
+        });
+
+        // Belled after recording the bell — but only for that terminal.
+        notifications.read(&app, |model, _| {
+            assert!(model.is_terminal_belled(terminal_view_id));
+            assert!(!model.is_terminal_belled(other_terminal_id));
+        });
+
+        notifications.update(&mut app, |model, ctx| {
+            model.mark_terminal_viewed(terminal_view_id, ctx);
+        });
+
+        // No longer belled once viewed.
+        notifications.read(&app, |model, _| {
+            assert!(!model.is_terminal_belled(terminal_view_id));
+        });
+    });
+}
