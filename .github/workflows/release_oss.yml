@@ -40,8 +40,10 @@ jobs:
           is_self_hosted: false
           install_release_deps: true
 
-      # `script/macos/bundle` builds a .dmg with create-dmg, which the CI
-      # dependency scripts do not install (only `script/macos/bootstrap` does).
+      # `script/macos/bundle` always builds a .dmg for an app artifact (there
+      # is no flag to skip it), so create-dmg must be present. The CI dependency
+      # scripts do not install it — only `script/macos/bootstrap` does. We zip
+      # the .app separately below; the .dmg it produces is an unused byproduct.
       - name: Install create-dmg
         run: brew install create-dmg
 
@@ -53,18 +55,19 @@ jobs:
           # Avoids GitHub API rate limits while fetching build-time downloads.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Locate the built DMG
+      - name: Package WarpOss.app
         id: artifact
         run: |
           set -euo pipefail
-          DMG=$(find target -type f -name 'WarpOss*.dmg' | head -1)
-          if [[ -z "$DMG" ]]; then
-            echo "::error::No WarpOss DMG was produced by script/bundle"
+          APP=$(find target -type d -name 'WarpOss.app' -path '*bundle/osx*' | head -1)
+          if [[ -z "$APP" ]]; then
+            echo "::error::WarpOss.app was not produced by script/bundle"
             exit 1
           fi
-          DEST="WarpOss-macos-arm64.dmg"
-          cp "$DMG" "$DEST"
-          echo "Built artifact: $DMG -> $DEST"
+          DEST="WarpOss-macos-arm64.zip"
+          # ditto --keepParent zips the .app itself (not just its contents).
+          ditto -c -k --keepParent "$APP" "$DEST"
+          echo "Packaged: $APP -> $DEST"
           echo "path=$DEST" >> "$GITHUB_OUTPUT"
 
       # Always expose the build as a workflow artifact (covers workflow_dispatch
