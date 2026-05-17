@@ -1,0 +1,93 @@
+name: Release OSS (macOS)
+
+# Builds the open-source WarpOss.app and attaches it to a GitHub Release.
+#
+# Triggered by pushing a tag like `oss-v0.1.0`. The build is ad-hoc signed
+# (no Apple Developer cert / notarization), which is enough for the app to
+# launch on Apple Silicon; users still get a Gatekeeper prompt on first run.
+
+on:
+  push:
+    tags:
+      - 'oss-v*'
+  # Allow ad-hoc builds from the Actions tab without publishing a release.
+  workflow_dispatch:
+
+permissions:
+  # Needed for `gh release create` to publish the artifact.
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-macos:
+    name: Build & release WarpOss.app (macOS arm64)
+    # macos-15 is an Apple Silicon runner and ships Xcode 26, required by
+    # `script/compile_icon` to compile the adaptive AppIcon.icon bundle.
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Prepare build environment
+        uses: ./.github/actions/prepare_environment
+        with:
+          target_os: macos
+          is_self_hosted: false
+          install_release_deps: true
+
+      # `script/macos/bundle` builds a .dmg with create-dmg, which the CI
+      # dependency scripts do not install (only `script/macos/bootstrap` does).
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Bundle WarpOss.app
+        # --selfsign: ad-hoc sign (no Apple cert needed) so the arm64 app runs.
+        # --nouniversal: build for the host arch (arm64) only.
+        run: ./script/bundle --channel oss --selfsign --nouniversal
+        env:
+          # Avoids GitHub API rate limits while fetching build-time downloads.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Locate the built DMG
+        id: artifact
+        run: |
+          set -euo pipefail
+          DMG=$(find target -type f -name 'WarpOss*.dmg' | head -1)
+          if [[ -z "$DMG" ]]; then
+            echo "::error::No WarpOss DMG was produced by script/bundle"
+            exit 1
+          fi
+          DEST="WarpOss-macos-arm64.dmg"
+          cp "$DMG" "$DEST"
+          echo "Built artifact: $DMG -> $DEST"
+          echo "path=$DEST" >> "$GITHUB_OUTPUT"
+
+      # Always expose the build as a workflow artifact (covers workflow_dispatch
+      # runs, which have no tag to publish a release against).
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: WarpOss-macos-arm64
+          path: ${{ steps.artifact.outputs.path }}
+
+      - name: Publish GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/oss-v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "${{ steps.artifact.outputs.path }}" \
+            --title "WarpOss ${GITHUB_REF_NAME}" \
+            --notes "Open-source build of Warp for macOS (Apple Silicon).
+
+          This build is ad-hoc signed and **not notarized by Apple**. On first
+          launch macOS will warn about an unidentified developer — right-click
+          the app and choose **Open**, or clear the quarantine attribute:
+
+          \`\`\`
+          xattr -dr com.apple.quarantine /Applications/WarpOss.app
+          \`\`\`"
