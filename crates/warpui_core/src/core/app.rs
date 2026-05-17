@@ -2103,6 +2103,12 @@ impl AppContext {
         self.platform_delegate.request_user_attention(window_id);
     }
 
+    /// Delegates to the OS to set or clear a badge on the dock/taskbar icon.
+    /// Passing `None` removes the badge. For macOS this sets the dock tile badge label.
+    pub(super) fn set_dock_badge(&self, label: Option<String>) {
+        self.platform_delegate.set_dock_badge(label);
+    }
+
     /// Delegates to the OS to show the system character palette.
     pub fn open_character_palette(&mut self) {
         self.platform_delegate.open_character_palette();

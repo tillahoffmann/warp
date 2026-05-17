@@ -210,3 +210,75 @@ fn separate_conversations_have_independent_pending_artifacts() {
         });
     });
 }
+
+#[test]
+fn record_terminal_bell_tracks_terminal() {
+    App::test((), |mut app| async move {
+        let (_history, notifications) = setup_app(&mut app);
+        let terminal_view_id = EntityId::new();
+
+        notifications.update(&mut app, |model, ctx| {
+            model.record_terminal_bell(terminal_view_id, ctx);
+        });
+
+        notifications.read(&app, |model, _| {
+            assert!(model.belled_terminals.contains(&terminal_view_id));
+        });
+    });
+}
+
+#[test]
+fn record_terminal_bell_is_idempotent() {
+    App::test((), |mut app| async move {
+        let (_history, notifications) = setup_app(&mut app);
+        let terminal_view_id = EntityId::new();
+
+        notifications.update(&mut app, |model, ctx| {
+            model.record_terminal_bell(terminal_view_id, ctx);
+            model.record_terminal_bell(terminal_view_id, ctx);
+        });
+
+        // Repeated bells for the same terminal do not accumulate.
+        notifications.read(&app, |model, _| {
+            assert_eq!(model.belled_terminals.len(), 1);
+        });
+    });
+}
+
+#[test]
+fn mark_terminal_viewed_clears_terminal() {
+    App::test((), |mut app| async move {
+        let (_history, notifications) = setup_app(&mut app);
+        let terminal_view_id = EntityId::new();
+
+        notifications.update(&mut app, |model, ctx| {
+            model.record_terminal_bell(terminal_view_id, ctx);
+            model.mark_terminal_viewed(terminal_view_id, ctx);
+        });
+
+        notifications.read(&app, |model, _| {
+            assert!(model.belled_terminals.is_empty());
+        });
+    });
+}
+
+#[test]
+fn belled_terminals_tracked_independently() {
+    App::test((), |mut app| async move {
+        let (_history, notifications) = setup_app(&mut app);
+        let terminal_a = EntityId::new();
+        let terminal_b = EntityId::new();
+
+        notifications.update(&mut app, |model, ctx| {
+            model.record_terminal_bell(terminal_a, ctx);
+            model.record_terminal_bell(terminal_b, ctx);
+            // Viewing one terminal leaves the other still tracked.
+            model.mark_terminal_viewed(terminal_a, ctx);
+        });
+
+        notifications.read(&app, |model, _| {
+            assert!(!model.belled_terminals.contains(&terminal_a));
+            assert!(model.belled_terminals.contains(&terminal_b));
+        });
+    });
+}

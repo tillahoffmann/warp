@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity, ViewHandle, WindowId};
@@ -32,6 +32,9 @@ pub struct AgentNotificationsModel {
     /// Artifacts accumulated during the current turn for each conversation.
     /// Drained into the notification when a terminal state fires, cleared on InProgress.
     pub(crate) pending_artifacts: HashMap<AIConversationId, Vec<Artifact>>,
+    /// Terminal views that have rung the bell while not visible and have not been
+    /// viewed since — i.e. terminals currently wanting the user's attention.
+    belled_terminals: HashSet<EntityId>,
 }
 
 impl Entity for AgentNotificationsModel {
@@ -60,11 +63,51 @@ impl AgentNotificationsModel {
         Self {
             notifications: NotificationItems::default(),
             pending_artifacts: HashMap::new(),
+            belled_terminals: HashSet::new(),
         }
     }
 
     pub(crate) fn notifications(&self) -> &NotificationItems {
         &self.notifications
+    }
+
+    /// Sets the dock icon badge to the number of terminals that have rung the bell
+    /// and have not yet been viewed (cleared when none).
+    fn update_dock_badge(&self, ctx: &ModelContext<Self>) {
+        let count = self.belled_terminals.len();
+        ctx.set_dock_badge((count > 0).then(|| count.to_string()));
+    }
+
+    /// Records that a terminal view rang the bell and should be tracked as wanting
+    /// attention until it is viewed.
+    ///
+    /// The caller must not record a bell the user has effectively already seen (the
+    /// terminal focused while Warp is frontmost). That check is deliberately *not*
+    /// done here: the bell is handled from inside the terminal view's own update,
+    /// during which the view is removed from its window, so resolving visibility
+    /// here would re-enter that view and panic with "circular view reference".
+    pub(crate) fn record_terminal_bell(
+        &mut self,
+        terminal_view_id: EntityId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if self.belled_terminals.insert(terminal_view_id) {
+            ctx.emit(AgentManagementEvent::BelledTerminalsChanged);
+            self.update_dock_badge(ctx);
+        }
+    }
+
+    /// Clears any pending bell for a terminal view because the user has viewed it
+    /// (focused it) or it has gone away (its shell exited).
+    pub(crate) fn mark_terminal_viewed(
+        &mut self,
+        terminal_view_id: EntityId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if self.belled_terminals.remove(&terminal_view_id) {
+            ctx.emit(AgentManagementEvent::BelledTerminalsChanged);
+            self.update_dock_badge(ctx);
+        }
     }
 
     pub(crate) fn mark_item_read(&mut self, id: NotificationId, ctx: &mut ModelContext<Self>) {
@@ -467,6 +510,8 @@ pub enum AgentManagementEvent {
     NotificationUpdated,
     /// All notifications were marked as read.
     AllNotificationsMarkedRead,
+    /// The set of terminals that rang the bell while unviewed changed.
+    BelledTerminalsChanged,
 }
 
 impl ConversationStatus {

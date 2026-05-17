@@ -232,6 +232,7 @@ use crate::ai::{
         ShellCommandExecutorEvent, StartAgentExecutor, StartAgentExecutorEvent, StartAgentRequest,
         ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, PRE_REWIND_PREFIX,
     },
+    agent_management::AgentNotificationsModel,
     execution_profiles::profiles::{AIExecutionProfilesModel, ClientProfileId},
     get_relevant_files::controller::GetRelevantFilesController,
 };
@@ -10843,8 +10844,33 @@ impl TerminalView {
                 // TODO(vorporeal): Remove this once we have a visual bell
                 // indicator in terminal tabs.
                 ctx.request_user_attention();
+
+                // Track this terminal as needing attention until the user views it
+                // — unless they are already looking at it (this terminal focused
+                // while Warp is frontmost), which mirrors macOS suppressing the dock
+                // bounce while the app is frontmost.
+                //
+                // Visibility is resolved here, from this view's own focus state,
+                // rather than inside `record_terminal_bell`: this runs during the
+                // terminal view's own update, so reading the view back to resolve
+                // visibility would re-enter it and panic ("circular view reference").
+                let user_is_viewing =
+                    ctx.is_self_or_child_focused() && ctx.windows().app_is_active();
+                if !user_is_viewing {
+                    let terminal_view_id = ctx.view_id();
+                    AgentNotificationsModel::handle(ctx).update(ctx, |model, ctx| {
+                        model.record_terminal_bell(terminal_view_id, ctx);
+                    });
+                }
             }
             ModelEvent::Exit { reason } => {
+                // The terminal is going away; clear any pending bell so the dock
+                // badge does not count a terminal that no longer exists.
+                let terminal_view_id = ctx.view_id();
+                AgentNotificationsModel::handle(ctx).update(ctx, |model, ctx| {
+                    model.mark_terminal_viewed(terminal_view_id, ctx);
+                });
+
                 if !self.manual_pty_shutdown_requested {
                     self.maybe_send_agent_exited_shell_telemetry(ctx);
                 }
