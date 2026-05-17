@@ -24,9 +24,10 @@ concurrency:
 jobs:
   build-macos:
     name: Build & release WarpOss.app (macOS arm64)
-    # macos-15 is an Apple Silicon runner and ships Xcode 26, required by
-    # `script/compile_icon` to compile the adaptive AppIcon.icon bundle.
-    runs-on: macos-15
+    # macos-26 is a standard Apple Silicon runner (free for public repos) and
+    # ships Xcode 26, required by `script/compile_icon` to compile the adaptive
+    # AppIcon.icon bundle.
+    runs-on: macos-26
     timeout-minutes: 120
     steps:
       - name: Checkout
