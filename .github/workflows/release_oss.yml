@@ -47,6 +47,12 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
+      # `script/macos/bundle` invokes `cargo bundle`. The CI dependency scripts
+      # do not install the `cargo-bundle` subcommand — only `script/macos/bootstrap`
+      # does. Pin the same git rev it uses (needed for `--profile` support).
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle --git=https://github.com/burtonageo/cargo-bundle --rev ae4c76e92c08774bf54ff077b1c52e3d1cd6c16d
+
       - name: Bundle WarpOss.app
         # --selfsign: ad-hoc sign (no Apple cert needed) so the arm64 app runs.
         # --nouniversal: build for the host arch (arm64) only.
